@@ -51,11 +51,16 @@
     .logo h1 { font-size: 2rem; font-weight: 900; letter-spacing: -0.02em; text-transform: uppercase; font-style: italic; }
 
     /* Tabs */
-    .tabs { display: flex; background: rgba(24,24,27,0.8); padding: 4px; border-radius: 12px; border: 1px solid var(--zinc-800); backdrop-filter: blur(8px); gap: 2px; flex-wrap: wrap; }
-    .tab-btn { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; border: none; cursor: pointer; transition: all 0.2s; background: transparent; color: var(--zinc-500); }
+    .tabs { display: flex; background: rgba(24,24,27,0.8); padding: 4px; border-radius: 12px; border: 1px solid var(--zinc-800); backdrop-filter: blur(8px); gap: 2px; flex-wrap: wrap; width: 100%; }
+    .tab-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; border: none; cursor: pointer; transition: all 0.2s; background: transparent; color: var(--zinc-500); flex: 1; white-space: nowrap; }
     .tab-btn:hover { color: var(--zinc-300); }
     .tab-btn.active { background: var(--brand); color: var(--zinc-900); box-shadow: 0 4px 12px rgba(var(--brand-rgb),0.25); }
-    .tab-btn svg { width: 14px; height: 14px; }
+    .tab-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+    @media(max-width:480px) {
+      .header-top { flex-direction: column; align-items: flex-start; }
+      .tabs { width: 100%; }
+      .tab-btn { font-size: 10px; padding: 8px 10px; }
+    }
 
     .header-sub h2 { font-size: 1.4rem; font-weight: 600; color: var(--zinc-200); margin-bottom: 0.25rem; }
     .header-sub p { font-size: 0.875rem; color: var(--zinc-500); max-width: 540px; }
@@ -256,11 +261,25 @@
 
 <!-- Video BG -->
 <div id="video-bg">
-  <video id="bg-video" autoplay loop muted playsinline>
+  <video id="bg-video" autoplay loop muted playsinline webkit-playsinline x5-playsinline x5-video-player-type="h5" preload="auto">
     <source src="https://res.cloudinary.com/dat92aqiv/video/upload/Create_an_ultrarealistic_202602201705_ivdw1_lzrdcb.mp4" type="video/mp4" />
   </video>
   <div id="video-overlay"></div>
 </div>
+<script>
+  // Force play on mobile (iOS requires user gesture workaround)
+  (function() {
+    const v = document.getElementById('bg-video');
+    if (v) {
+      v.play().catch(() => {
+        document.addEventListener('touchstart', function once() {
+          v.play();
+          document.removeEventListener('touchstart', once);
+        }, { once: true });
+      });
+    }
+  })();
+</script>
 
 <main>
   <!-- HEADER -->
