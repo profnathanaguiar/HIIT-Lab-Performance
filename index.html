@@ -1103,7 +1103,7 @@
                 Razão Esforço : Pausa
               </div>
               <div style="text-align:right">
-                <div class="ratio-pill-val" id="adv-ratio-display">1 : 1</div>
+                <div class="ratio-pill-val" id="adv-ratio-display">1:1</div>
                 <div class="ratio-pill-hint" id="adv-ratio-compliance">Dentro das recomendações</div>
               </div>
             </div>
@@ -1309,7 +1309,6 @@ const ADV_TYPE_DEFAULTS = {
     recType: 'passiva',
     recDur: 30, recDurUnit: 's', recDurPresets: [15, 30, 45, 60],
     recInt: '0',
-    ratioPresets: ['1:2', '1:1', '2:1', '3:1'],
     reps: 10, repsPresets: [8, 10, 12, 15, 20],
     warmupDur: 5, warmupDurUnit: 'min', warmupVal: '50', warmupUnit: 'pct_ivo2',
     cooldownDur: 3, cooldownDurUnit: 'min', cooldownVal: '40', cooldownUnit: 'pct_ivo2',
@@ -1322,7 +1321,6 @@ const ADV_TYPE_DEFAULTS = {
     recType: 'ativa',
     recDur: 2, recDurUnit: 'min', recDurPresets: [1, 1.5, 2, 3],
     recInt: '50-60',
-    ratioPresets: ['1:2', '1:1', '2:1', '3:1'],
     reps: 4, repsPresets: [3, 4, 5, 6],
     warmupDur: 5, warmupDurUnit: 'min', warmupVal: '50', warmupUnit: 'pct_ivo2',
     cooldownDur: 4, cooldownDurUnit: 'min', cooldownVal: '40', cooldownUnit: 'pct_ivo2',
@@ -1335,7 +1333,6 @@ const ADV_TYPE_DEFAULTS = {
     recType: 'ativa',
     recDur: 4, recDurUnit: 'min', recDurPresets: [2, 3, 4, 4.5],
     recInt: '30',
-    ratioPresets: ['1:6', '1:8', '1:10'],
     reps: 5, repsPresets: [4, 5, 6, 8],
     warmupDur: 6, warmupDurUnit: 'min', warmupVal: '50', warmupUnit: 'pct_ivo2',
     cooldownDur: 4, cooldownDurUnit: 'min', cooldownVal: '40', cooldownUnit: 'pct_ivo2',
@@ -1348,7 +1345,6 @@ const ADV_TYPE_DEFAULTS = {
     recType: 'passiva',
     recDur: 30, recDurUnit: 's', recDurPresets: [20, 30, 45, 60],
     recInt: '0',
-    ratioPresets: ['1:5', '1:6', '1:8', '1:10'],
     reps: 10, repsPresets: [6, 8, 10, 12],
     warmupDur: 5, warmupDurUnit: 'min', warmupVal: '50', warmupUnit: 'pct_ivo2',
     cooldownDur: 3, cooldownDurUnit: 'min', cooldownVal: '40', cooldownUnit: 'pct_ivo2',
@@ -1777,15 +1773,14 @@ function generateHIIT() {
   const stimSec  = selectedProtocol.stim;
   const recSec   = selectedProtocol.rec;
 
-  let stimLabel, recLabel, warmupLabel, stimAbsVal, recAbsVal;
+  let stimLabel, recLabel, warmupLabel;
 
   if (isSIT) {
-    stimAbsVal = mcValue * cfg.mcPct * 10;
+    const stimAbsVal = mcValue * cfg.mcPct * 10;
     stimLabel  = `${fmtHiitVal(stimAbsVal)} W (all-out @ ${id===7?'5':'7,5'}% MC)`;
     recLabel   = id === 7 ? '50 W (ativa)' : '30 W @ 50 rpm (ativa)';
     warmupLabel = `7 × [30 s @ 75% iVO₂máx / 30 s passivo]`;
   } else if (isRST) {
-    stimAbsVal = 0;
     stimLabel  = 'All-out';
     recLabel   = cfg.recType;
     warmupLabel = `7 × [30 s @ 75% iVO₂máx / 30 s passivo]`;
@@ -1805,14 +1800,12 @@ function generateHIIT() {
     stimLabel  = `${stimRange} (${stimPctStr} FCmáx)`;
     recLabel   = `ativa — ${recRange} (${recPctStr} FCmáx)`;
     warmupLabel = `5 min @ 50–60% FCmáx`;
-    stimAbsVal = stimBpmMin;
-    recAbsVal  = recBpmMin;
     cfg._stimPctForGraph = stimPctMin;
     cfg._recPctForGraph  = recPctMin;
     cfg._fcMax = fcMaxValue;
   } else {
-    stimAbsVal = baseValue * cfg.stimPct / 100;
-    recAbsVal  = baseValue * cfg.recPct  / 100;
+    const stimAbsVal = baseValue * cfg.stimPct / 100;
+    const recAbsVal  = baseValue * cfg.recPct  / 100;
     stimLabel  = `${fmtHiitVal(stimAbsVal)} ${unit} (${cfg.stimPct}% ${vo2Label})`;
     recLabel   = cfg.recPct > 0
       ? `ativa — ${fmtHiitVal(recAbsVal)} ${unit} (${cfg.recPct}% ${vo2Label})`
@@ -1854,6 +1847,33 @@ function generateHIIT() {
   document.getElementById('hiit-step3').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
+function renderProtocolGraph(containerId, p) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const svgParams = {
+    clientName: '',
+    ergometer: 'esteira',
+    type: 'curto',
+    stimSec: p.stimSec,
+    recSec: p.recSec,
+    isExhaustion: false,
+    reps: p.series,
+    metric: p.isFCBased ? 'fcmax' : 'vam',
+    baseVal: p.cfg._fcMax || 16,
+    incline: 0,
+    rpm: 90,
+    stimIntRaw: String(p.cfg.stimPct || 100),
+    stimRange: { min: p.cfg.stimPct || 100, max: p.cfg.stimPct || 100, isRange: false, avg: p.cfg.stimPct || 100, str: String(p.cfg.stimPct || 100) },
+    recType: p.cfg.recType.includes('ativa') ? 'ativa' : 'passiva',
+    recIntRaw: String(p.cfg.recPct || 0),
+    recRange: { min: p.cfg.recPct || 0, max: p.cfg.recPct || 0, isRange: false, avg: p.cfg.recPct || 0, str: String(p.cfg.recPct || 0) },
+    recIntMode: 'pct',
+    warmupSec: 300,
+    cooldownSec: 180
+  };
+  renderAdvancedSVG(containerId, svgParams);
+}
+
 // ===================== MODO AVANÇADO =====================
 function selectAdvancedType(type) {
   advCurrentType = type;
@@ -1874,6 +1894,7 @@ function applyAdvTypeDefaults(type) {
   document.getElementById('adv-stim-dur-hint').textContent = `Sugestão: ${d.stimDur} ${d.stimDurUnit}`;
   renderPresetChips('adv-stim-dur-presets', d.stimDurPresets, (val) => {
     document.getElementById('adv-stim-dur').value = val;
+    document.getElementById('adv-stim-dur-unit').value = d.stimDurUnit;
     updateLivePreview();
   }, d.stimDurUnit);
 
@@ -1895,6 +1916,7 @@ function applyAdvTypeDefaults(type) {
   document.getElementById('adv-rec-dur-hint').textContent = `Sugestão: ${d.recDur} ${d.recDurUnit}`;
   renderPresetChips('adv-rec-dur-presets', d.recDurPresets, (val) => {
     document.getElementById('adv-rec-dur').value = val;
+    document.getElementById('adv-rec-dur-unit').value = d.recDurUnit;
     updateLivePreview();
   }, d.recDurUnit);
 
@@ -2012,26 +2034,33 @@ function toggleExhaustionMode() {
 
 // ===================== LIVE RATIO & PREVIEW =====================
 function calculateRatio(stimSec, recSec) {
+  stimSec = Number(stimSec);
+  recSec = Number(recSec);
   if (!stimSec || !recSec || stimSec <= 0 || recSec <= 0) return { str: '1:1', decimal: 1 };
   
-  if (stimSec >= recSec) {
+  if (Math.abs(stimSec - recSec) < 0.001) {
+    return { str: '1:1', decimal: 1 };
+  }
+  if (stimSec > recSec) {
     const val = stimSec / recSec;
     const rounded = Math.round(val * 10) / 10;
-    return { str: `${rounded} : 1`, decimal: val };
+    const strVal = rounded % 1 === 0 ? rounded.toString() : rounded.toString().replace('.', ',');
+    return { str: `${strVal}:1`, decimal: val };
   } else {
     const val = recSec / stimSec;
     const rounded = Math.round(val * 10) / 10;
-    return { str: `1 : ${rounded}`, decimal: 1 / val };
+    const strVal = rounded % 1 === 0 ? rounded.toString() : rounded.toString().replace('.', ',');
+    return { str: `1:${strVal}`, decimal: 1 / val };
   }
 }
 
 function getRatioCompliance(type, stimSec, recSec) {
   const ratio = stimSec / recSec;
   if (type === 'curto') {
-    if (ratio >= 0.30 && ratio <= 3.2) return { text: 'Conforme (1:2 a 3:1)', ok: true };
+    if (ratio >= 0.45 && ratio <= 3.2) return { text: 'Conforme (1:2 a 3:1)', ok: true };
     return { text: 'Fora do padrão usual para HIIT Curto (1:2 a 3:1)', ok: false };
   } else if (type === 'longo') {
-    if (ratio >= 0.30 && ratio <= 3.2) return { text: 'Conforme (1:2 a 3:1)', ok: true };
+    if (ratio >= 0.45 && ratio <= 3.2) return { text: 'Conforme (1:2 a 3:1)', ok: true };
     return { text: 'Fora do padrão usual para HIIT Longo (1:2 a 3:1)', ok: false };
   } else if (type === 'sit') {
     if (ratio <= 0.22 && ratio >= 0.08) return { text: 'Conforme (1:6 a 1:10)', ok: true };
@@ -2043,7 +2072,6 @@ function getRatioCompliance(type, stimSec, recSec) {
   return { text: '', ok: true };
 }
 
-// Parse range or single number string: "90-95" -> { min: 90, max: 95, isRange: true, avg: 92.5, str: "90–95" }
 function parseRange(str) {
   if (!str) return { min: 0, max: 0, isRange: false, avg: 0, str: '0' };
   const cleaned = String(str).trim().replace(/\s*a\s*/i, '-').replace(/\s*–\s*/, '-');
@@ -2060,20 +2088,6 @@ function parseRange(str) {
 function formatIntensityString(rawVal, unit, baseVal, metric) {
   if (!rawVal || rawVal === '0') return '';
   const range = parseRange(rawVal);
-
-  const formatWithBase = (unitName) => {
-    if (baseVal > 0) {
-      if (range.isRange) {
-        const absMin = (baseVal * range.min / 100).toFixed(1);
-        const absMax = (baseVal * range.max / 100).toFixed(1);
-        return `${range.str}% ${unitName} (${absMin}–${absMax})`;
-      } else {
-        const abs = (baseVal * range.avg / 100).toFixed(1);
-        return `${range.str}% ${unitName} (${abs})`;
-      }
-    }
-    return `${range.str}% ${unitName}`;
-  };
 
   if (unit === 'pct_ivo2') {
     const metricUnit = metric === 'vam' ? 'km/h' : (metric === 'pam' ? 'W' : '');
@@ -2102,11 +2116,11 @@ function getAdvParams() {
   const clientName = document.getElementById('adv-client-name')?.value.trim() || '';
   const ergometer = document.getElementById('adv-ergometer').value;
 
-  const stimDurVal = parseFloat(document.getElementById('adv-stim-dur').value) || 30;
+  const stimDurVal = parseFloat(document.getElementById('adv-stim-dur').value) || 0;
   const stimDurUnit = document.getElementById('adv-stim-dur-unit').value;
   const stimSec = stimDurUnit === 'min' ? stimDurVal * 60 : stimDurVal;
 
-  const recDurVal = parseFloat(document.getElementById('adv-rec-dur').value) || 30;
+  const recDurVal = parseFloat(document.getElementById('adv-rec-dur').value) || 0;
   const recDurUnit = document.getElementById('adv-rec-dur-unit').value;
   const recSec = recDurUnit === 'min' ? recDurVal * 60 : recDurVal;
 
