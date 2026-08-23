@@ -1079,19 +1079,33 @@
 
           <!-- Intensidade da Recuperação (se ativa) -->
           <div class="form-group full hidden" id="adv-rec-int-group">
-            <label class="field-label">
-              Intensidade da Recuperação Ativa (Valor Fixo ou Zona)
-              <span class="field-hint">Ex: 50 ou 50-60</span>
-            </label>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div class="input-wrapper">
-                <input type="text" id="adv-rec-int" value="50" placeholder="Ex: 50 ou 50-60" oninput="updateLivePreview()" />
-                <span class="input-suffix" id="adv-rec-int-suffix">%</span>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem">
+              <div>
+                <label class="field-label">
+                  Intensidade da Recuperação Ativa
+                  <span class="field-hint">Ex: 50 ou 50-60</span>
+                </label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                  <div class="input-wrapper">
+                    <input type="text" id="adv-rec-int" value="50" placeholder="Ex: 50 ou 50-60" oninput="updateLivePreview()" />
+                    <span class="input-suffix" id="adv-rec-int-suffix">%</span>
+                  </div>
+                  <select id="adv-rec-int-mode" onchange="updateLivePreview()">
+                    <option value="pct">% da Referência</option>
+                    <option value="abs">Valor Absoluto</option>
+                  </select>
+                </div>
               </div>
-              <select id="adv-rec-int-mode" onchange="updateLivePreview()">
-                <option value="pct">% da Intensidade de Referência</option>
-                <option value="abs">Valor Absoluto (km/h, W, bpm, RPM)</option>
-              </select>
+              <div id="adv-rec-rpm-subgroup" class="hidden">
+                <label class="field-label">
+                  Cadência da Recuperação (RPM)
+                  <span class="field-hint">Cicloergômetro</span>
+                </label>
+                <div class="input-wrapper">
+                  <input type="number" id="adv-rec-rpm" value="60" min="30" max="200" step="5" placeholder="Ex: 60" oninput="updateLivePreview()" />
+                  <span class="input-suffix">rpm</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1964,9 +1978,11 @@ function onAdvErgometerChange() {
   const ergo = document.getElementById('adv-ergometer').value;
   const isEsteira = ergo === 'esteira';
   const isBike = ergo === 'bike';
+  const isAtiva = document.getElementById('adv-rec-type').value === 'ativa';
 
   document.getElementById('adv-incline-group').classList.toggle('hidden', !isEsteira);
   document.getElementById('adv-rpm-group').classList.toggle('hidden', !isBike);
+  document.getElementById('adv-rec-rpm-subgroup').classList.toggle('hidden', !(isBike && isAtiva));
 
   updateLivePreview();
 }
@@ -2020,9 +2036,10 @@ function onAdvMetricChange() {
 }
 
 function onAdvRecTypeChange() {
-  const type = document.getElementById('adv-rec-type').value;
-  const isAtiva = type === 'ativa';
+  const isAtiva = document.getElementById('adv-rec-type').value === 'ativa';
+  const isBike = document.getElementById('adv-ergometer').value === 'bike';
   document.getElementById('adv-rec-int-group').classList.toggle('hidden', !isAtiva);
+  document.getElementById('adv-rec-rpm-subgroup').classList.toggle('hidden', !(isBike && isAtiva));
   updateLivePreview();
 }
 
@@ -2033,25 +2050,40 @@ function toggleExhaustionMode() {
 }
 
 // ===================== LIVE RATIO & PREVIEW =====================
+function gcd(a, b) {
+  a = Math.abs(Math.round(a));
+  b = Math.abs(Math.round(b));
+  while (b) {
+    let t = b;
+    b = a % b;
+    a = t;
+  }
+  return a;
+}
+
 function calculateRatio(stimSec, recSec) {
-  stimSec = Number(stimSec);
-  recSec = Number(recSec);
-  if (!stimSec || !recSec || stimSec <= 0 || recSec <= 0) return { str: '1:1', decimal: 1 };
-  
-  if (Math.abs(stimSec - recSec) < 0.001) {
-    return { str: '1:1', decimal: 1 };
+  let s = Number(stimSec);
+  let r = Number(recSec);
+  if (!s || !r || s <= 0 || r <= 0) return { str: '1:1', decimal: 1 };
+
+  // Suporte a frações caso inserido em decimais
+  let multiplier = 1;
+  while (!Number.isInteger(s * multiplier) || !Number.isInteger(r * multiplier)) {
+    multiplier *= 10;
+    if (multiplier >= 1000) break;
   }
-  if (stimSec > recSec) {
-    const val = stimSec / recSec;
-    const rounded = Math.round(val * 10) / 10;
-    const strVal = rounded % 1 === 0 ? rounded.toString() : rounded.toString().replace('.', ',');
-    return { str: `${strVal}:1`, decimal: val };
-  } else {
-    const val = recSec / stimSec;
-    const rounded = Math.round(val * 10) / 10;
-    const strVal = rounded % 1 === 0 ? rounded.toString() : rounded.toString().replace('.', ',');
-    return { str: `1:${strVal}`, decimal: 1 / val };
-  }
+
+  const sInt = Math.round(s * multiplier);
+  const rInt = Math.round(r * multiplier);
+  const divisor = gcd(sInt, rInt);
+
+  const num = sInt / divisor;
+  const den = rInt / divisor;
+
+  return {
+    str: `${num}:${den}`,
+    decimal: s / r
+  };
 }
 
 function getRatioCompliance(type, stimSec, recSec) {
@@ -2138,6 +2170,9 @@ function getAdvParams() {
   const recIntRaw = document.getElementById('adv-rec-int').value.trim() || '50';
   const recRange = parseRange(recIntRaw);
   const recIntMode = document.getElementById('adv-rec-int-mode')?.value || 'pct';
+  const recRpm = (ergometer === 'bike' && recType === 'ativa')
+    ? (parseFloat(document.getElementById('adv-rec-rpm')?.value) || 60)
+    : 0;
 
   const warmupDurVal = parseFloat(document.getElementById('adv-warmup-dur').value) || 0;
   const warmupDurUnit = document.getElementById('adv-warmup-dur-unit').value;
@@ -2157,7 +2192,7 @@ function getAdvParams() {
     type: advCurrentType,
     typeName: ADV_TYPE_DEFAULTS[advCurrentType].name,
     stimSec, recSec, stimDurVal, stimDurUnit, recDurVal, recDurUnit,
-    isExhaustion, reps, metric, baseVal, incline, rpm, stimIntRaw, stimRange, recType, recIntRaw, recRange, recIntMode,
+    isExhaustion, reps, metric, baseVal, incline, rpm, stimIntRaw, stimRange, recType, recIntRaw, recRange, recIntMode, recRpm,
     warmupSec, warmupDurVal, warmupDurUnit, warmupVal, warmupUnit,
     cooldownSec, cooldownDurVal, cooldownDurUnit, cooldownVal, cooldownUnit
   };
@@ -2286,7 +2321,14 @@ function renderAdvancedSVG(containerId, p) {
   if (REC_H > 0) {
     const recLabelY = TOP_PAD + H - REC_H;
     svg += `<line x1="${LEFT_PAD}" y1="${recLabelY}" x2="${svgW-RIGHT_PAD}" y2="${recLabelY}" stroke="rgba(255,255,255,0.08)" stroke-width="1" stroke-dasharray="4 4"/>`;
-    svg += `<text x="${LEFT_PAD-8}" y="${recLabelY+3}" text-anchor="end" fill="rgba(255,255,255,0.5)" font-size="9" font-weight="700">${p.recRange.str}%</text>`;
+    let recYText = `${p.recRange.str}%`;
+    if (p.ergometer === 'bike' && p.recRpm > 0) {
+      recYText += `\n@ ${p.recRpm} rpm`;
+    }
+    const rLines = recYText.split('\n');
+    rLines.forEach((rln, rli) => {
+      svg += `<text x="${LEFT_PAD-8}" y="${recLabelY + 3 + rli*10}" text-anchor="end" fill="rgba(255,255,255,0.5)" font-size="8" font-weight="700">${rln}</text>`;
+    });
   }
 
   // Barras
@@ -2376,17 +2418,30 @@ function generateAdvancedHIIT() {
 
   let recDesc = 'Passiva';
   if (p.recType === 'ativa') {
+    let recRpmInfo = (p.ergometer === 'bike' && p.recRpm > 0) ? ` @ ${p.recRpm} RPM` : '';
     if (p.recIntMode === 'abs') {
-      recDesc = `Ativa @ ${p.recRange.str}`;
+      recDesc = `Ativa @ ${p.recRange.str}${recRpmInfo}`;
     } else {
       if (p.metric === 'vam' && p.baseVal > 0) {
         if (p.recRange.isRange) {
-          recDesc = `Ativa @ ${(p.baseVal * p.recRange.min / 100).toFixed(1)}–${(p.baseVal * p.recRange.max / 100).toFixed(1)} km/h (${p.recRange.str}% VAM)`;
+          recDesc = `Ativa @ ${(p.baseVal * p.recRange.min / 100).toFixed(1)}–${(p.baseVal * p.recRange.max / 100).toFixed(1)} km/h (${p.recRange.str}% VAM)${recRpmInfo}`;
         } else {
-          recDesc = `Ativa @ ${(p.baseVal * p.recRange.avg / 100).toFixed(1)} km/h (${p.recRange.str}% VAM)`;
+          recDesc = `Ativa @ ${(p.baseVal * p.recRange.avg / 100).toFixed(1)} km/h (${p.recRange.str}% VAM)${recRpmInfo}`;
+        }
+      } else if (p.metric === 'pam' && p.baseVal > 0) {
+        if (p.recRange.isRange) {
+          recDesc = `Ativa @ ${Math.round(p.baseVal * p.recRange.min / 100)}–${Math.round(p.baseVal * p.recRange.max / 100)} W (${p.recRange.str}% PAM)${recRpmInfo}`;
+        } else {
+          recDesc = `Ativa @ ${Math.round(p.baseVal * p.recRange.avg / 100)} W (${p.recRange.str}% PAM)${recRpmInfo}`;
+        }
+      } else if (p.metric === 'fcmax' && p.baseVal > 0) {
+        if (p.recRange.isRange) {
+          recDesc = `Ativa @ ${Math.round(p.baseVal * p.recRange.min / 100)}–${Math.round(p.baseVal * p.recRange.max / 100)} bpm (${p.recRange.str}% FCmáx)${recRpmInfo}`;
+        } else {
+          recDesc = `Ativa @ ${Math.round(p.baseVal * p.recRange.avg / 100)} bpm (${p.recRange.str}% FCmáx)${recRpmInfo}`;
         }
       } else {
-        recDesc = `Ativa @ ${p.recRange.str}%`;
+        recDesc = `Ativa @ ${p.recRange.str}%${recRpmInfo}`;
       }
     }
   }
